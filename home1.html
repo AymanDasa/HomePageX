@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HomePageX — personal start page</title>
+  <meta name="description" content="Quickly build a personal homepage with topics and favorite links. Everything is saved locally (IndexedDB + LocalStorage)." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='64' fill='%23000'/%3E%3Cpath fill='%23fff' d='M128 40 32 112v104h64v-64h64v64h64V112z'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-soft: #121620;
+      --card: #171b26;
+      --muted: #9aa3b2;
+      --text: #e9edf3;
+      --accent: #46a6ff;
+      --accent-2: #7c4dff;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --radius: 16px;
+      --shadow: 0 6px 22px rgba(0,0,0,.35);
+      --grid: 320px; /* min card width */
+      --link-size: 44px;
+      --wallpaper: none; /* css background-image */
+      --wallpaper-alpha: 0.22;
+      --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    * { box-sizing: border-box }
+    html, body { height: 100% }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--text);
+      background:
+        linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.6)),
+        radial-gradient(1200px 600px at 80% -10%, rgba(124,77,255,.25), transparent 60%),
+        radial-gradient(800px 400px at -10% 20%, rgba(70,166,255,.18), transparent 60%),
+        var(--bg);
+      background-attachment: fixed;
+    }
+    /* optional wallpaper layover */
+    body::before {
+      content: "";
+      position: fixed; inset: 0;
+      background-image: var(--wallpaper);
+      background-size: cover; background-position: center; background-repeat: no-repeat;
+      opacity: var(--wallpaper-alpha);
+      pointer-events: none; z-index: -1;
+      filter: saturate(1.05) contrast(1.05);
+    }
+
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    header {
+      display: flex; gap: 12px; align-items: center; justify-content: space-between;
+      padding: 16px 18px; background: color-mix(in oklab, var(--card) 88%, black 12%);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: calc(var(--radius) + 6px);
+      box-shadow: var(--shadow);
+      position: sticky; top: 12px; z-index: 5;
+      backdrop-filter: blur(6px);
+    }
+    .brand { display: flex; gap: 12px; align-items: center; }
+    .brand .logo { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items:center; box-shadow: 0 8px 30px rgba(70,166,255,.35) }
+    .brand .logo svg { width: 18px; height: 18px; fill: white }
+    .brand .title { font-weight: 700; letter-spacing: .2px }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+    button, .btn {
+      appearance: none; border: 1px solid rgba(255,255,255,.08);
+      background: linear-gradient(180deg, color-mix(in oklab, var(--card) 88%, white 6%), color-mix(in oklab, var(--card) 96%, black 4%));
+      color: var(--text); padding: 10px 12px; border-radius: 12px; font-weight: 600;
+      cursor: pointer; transition: transform .05s ease, background .2s ease, border-color .2s ease;
+      display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+    }
+    button:hover { transform: translateY(-1px); border-color: rgba(255,255,255,.16) }
+    button:active { transform: translateY(0) scale(.99) }
+    .btn-primary { background: linear-gradient(135deg, color-mix(in oklab, var(--accent) 86%, white 10%), color-mix(in oklab, var(--accent-2) 70%, black 10%)); border: none }
+    .btn-danger { background: linear-gradient(135deg, #ef4444, #b91c1c); border: none }
+    .btn-ghost { background: transparent; border-color: rgba(255,255,255,.16) }
+
+    .grid {
+      margin-top: 18px;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--grid), 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,.06);
+      border-top: 3px solid var(--accent);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px 14px 8px 14px;
+      display: flex; flex-direction: column; gap: 12px;
+      min-height: 120px;
+      position: relative;
+    }
+    .card .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .card .topic-title { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing:.2px }
+    .chip { font-size: 22px; line-height: 1; }
+
+    .links { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: 10px; }
+    .link-item { display:flex; gap: 8px; align-items: center; background: color-mix(in oklab, var(--bg-soft), white 2%); border: 1px solid rgba(255,255,255,.06); padding: 10px 12px; border-radius: 12px; overflow: hidden }
+    .link-item a { color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex:1 }
+    .link-actions { display: flex; gap: 6px }
+
+    .muted { color: var(--muted) }
+
+    .footer { opacity:.8; font-size: 12px; text-align: center; margin: 22px 0 10px }
+
+    /* controls */
+    .field { display:flex; flex-direction: column; gap:6px; margin-bottom: 12px }
+    .row { display:flex; gap: 10px; align-items: center; flex-wrap: wrap }
+    input[type="text"], input[type="url"], input[type="search"], select, textarea {
+      width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: color-mix(in oklab, var(--bg-soft) 96%, white 4%); color: var(--text)
+    }
+    input[type="color"] { border: none; width: 38px; height: 38px; padding: 0; background: transparent }
+    label { font-size: 12px; color: var(--muted) }
+
+    dialog { border: 1px solid rgba(255,255,255,.12); border-radius: 16px; background: var(--bg-soft); color: var(--text); box-shadow: var(--shadow); width: min(720px, 92vw) }
+    dialog::backdrop { background: rgba(0,0,0,.4); backdrop-filter: blur(2px) }
+
+    .pill { padding: 4px 8px; border-radius: 999px; background: rgba(255,255,255,.08); font-size: 12px }
+
+    .searchbox { flex: 1 }
+
+    @media (max-width: 600px) {
+      header { flex-direction: column; align-items: stretch; gap: 10px }
+      .toolbar { justify-content: space-between }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand" title="HomePageX (stored locally)">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="img" aria-label="logo"><path d="M12 3 3 9v12h6v-6h6v6h6V9z"/></svg>
+        </div>
+        <div>
+          <div class="title">HomePageX</div>
+          <div class="muted" style="font-size:12px">Everything lives locally · IndexedDB + LocalStorage</div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="searchbox">
+          <input id="search" type="search" placeholder="Quick search… (press /)" aria-label="Quick search" />
+        </div>
+        <button id="addTopicBtn" class="btn-primary" title="Add a topic">➕ Add Topic</button>
+        <button id="themeBtn" title="Theme & background">🎨 Theme</button>
+        <button id="backupBtn" title="Export / Import data">💾 Backup</button>
+        <button id="resetBtn" class="btn-danger" title="Reset to factory (keeps a backup file)">♻️ Reset</button>
+      </div>
+    </header>
+
+    <main id="grid" class="grid" aria-live="polite"></main>
+
+    <div class="footer muted">Tip: Set this file as your browser’s home page. No installation needed.</div>
+  </div>
+
+  <!-- Topic Modal -->
+  <dialog id="topicModal">
+    <form method="dialog" id="topicForm">
+      <div style="padding:16px 18px 0 18px; display:flex; align-items:center; gap:10px; justify-content: space-between;">
+        <strong id="topicModalTitle">New topic</strong>
+        <span class="pill" id="topicIdPill">new</span>
+      </div>
+      <div style="padding: 12px 18px 0 18px;">
+        <div class="row">
+          <div class="field" style="flex:2; min-width: 200px;">
+            <label for="topicTitle">Title</label>
+            <input id="topicTitle" type="text" required placeholder="e.g., Work, News, Learning" />
+          </div>
+          <div class="field" style="width:120px">
+            <label for="topicEmoji">Emoji</label>
+            <input id="topicEmoji" type="text" placeholder="😀" maxlength="3" />
+          </div>
+          <div class="field" style="width:120px">
+            <label for="topicColor">Accent</label>
+            <input id="topicColor" type="color" value="#46a6ff" />
+          </div>
+        </div>
+      </div>
+      <div style="padding: 0 18px 16px 18px; display:flex; gap:10px; justify-content:flex-end;">
+        <button value="cancel" class="btn-ghost">Cancel</button>
+        <button id="saveTopicBtn" value="default" class="btn">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Link Modal -->
+  <dialog id="linkModal">
+    <form method="dialog" id="linkForm">
+      <div style="padding:16px 18px 0 18px; display:flex; align-items:center; gap:10px; justify-content: space-between;">
+        <strong id="linkModalTitle">Add link</strong>
+        <span class="pill" id="linkTopicName"></span>
+      </div>
+      <div style="padding: 12px 18px 0 18px;">
+        <div class="row">
+          <div class="field" style="flex:2; min-width: 200px;">
+            <label for="linkTitle">Label</label>
+            <input id="linkTitle" type="text" required placeholder="Site name" />
+          </div>
+          <div class="field" style="flex:3; min-width: 240px;">
+            <label for="linkUrl">URL</label>
+            <input id="linkUrl" type="url" required placeholder="https://example.com" />
+          </div>
+        </div>
+      </div>
+      <div style="padding: 0 18px 16px 18px; display:flex; gap:10px; justify-content:flex-end;">
+        <button value="cancel" class="btn-ghost">Cancel</button>
+        <button id="saveLinkBtn" value="default" class="btn">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Theme Modal -->
+  <dialog id="themeModal">
+    <form method="dialog" id="themeForm">
+      <div style="padding:16px 18px 0 18px; display:flex; align-items:center; gap:10px; justify-content: space-between;">
+        <strong>Theme & Background</strong>
+        <span class="pill">personalize</span>
+      </div>
+      <div style="padding: 12px 18px 0 18px;">
+        <div class="row">
+          <div class="field" style="min-width:200px;flex:1">
+            <label>Accent Color</label>
+            <input id="themeAccent" type="color" />
+          </div>
+          <div class="field" style="min-width:200px;flex:1">
+            <label>Accent 2</label>
+            <input id="themeAccent2" type="color" />
+          </div>
+          <div class="field" style="min-width:200px;flex:1">
+            <label>Wallpaper (image)</label>
+            <input id="wallpaperFile" type="file" accept="image/*" />
+          </div>
+        </div>
+        <div class="row">
+          <div class="field" style="min-width:200px;flex:1">
+            <label>Wallpaper Opacity</label>
+            <input id="wallpaperAlpha" type="range" min="0" max="1" step="0.01" />
+          </div>
+          <div class="field" style="flex:2">
+            <label>Quick Wallpapers</label>
+            <div class="row" id="quickWallpapers"></div>
+          </div>
+        </div>
+      </div>
+      <div style="padding: 0 18px 16px 18px; display:flex; gap:10px; justify-content:flex-end;">
+        <button value="cancel" class="btn-ghost">Close</button>
+        <button id="saveThemeBtn" value="default" class="btn">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Backup Modal -->
+  <dialog id="backupModal">
+    <form method="dialog" id="backupForm">
+      <div style="padding:16px 18px 0 18px; display:flex; align-items:center; gap:10px; justify-content: space-between;">
+        <strong>Backup & Restore</strong>
+        <span class="pill">JSON</span>
+      </div>
+      <div style="padding: 12px 18px 0 18px;">
+        <div class="row">
+          <button id="exportBtn" class="btn">⬇️ Export to file</button>
+          <label class="btn" for="importFile">⬆️ Import from file</label>
+          <input id="importFile" type="file" accept="application/json" style="display:none" />
+        </div>
+        <p class="muted" style="margin-top:8px">Backups include topics, links and theme settings. They do not include your wallpaper image; the backup stores a small data URL preview instead.</p>
+      </div>
+      <div style="padding: 0 18px 16px 18px; display:flex; gap:10px; justify-content:flex-end;">
+        <button value="cancel" class="btn-ghost">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <template id="topicTemplate">
+    <section class="card" data-topic-id="">
+      <div class="head">
+        <div class="topic-title"><span class="chip">📁</span><span class="name">Topic</span></div>
+        <div class="row">
+          <button class="editTopicBtn" title="Edit topic">✏️</button>
+          <button class="addLinkBtn" title="Add link">🔗</button>
+          <button class="deleteTopicBtn" title="Delete topic" aria-label="Delete topic">🗑️</button>
+        </div>
+      </div>
+      <div class="links"></div>
+    </section>
+  </template>
+
+  <template id="linkTemplate">
+    <div class="link-item" data-link-id="">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10.59 13.41a1 1 0 0 0 1.41 0l4.59-4.59a3 3 0 0 0-4.24-4.24l-2.12 2.12a1 1 0 1 0 1.41 1.41l2.12-2.12a1 1 0 1 1 1.41 1.41l-4.58 4.59a3 3 0 0 0 0 4.24a3 3 0 0 0 4.24 0l2.12-2.12a1 1 0 0 0-1.41-1.41l-2.12 2.12a1 1 0 0 1-1.41-1.41Z"/></svg>
+      <a target="_blank" rel="noopener">Label</a>
+      <div class="link-actions">
+        <button class="editLinkBtn" title="Edit link">✏️</button>
+        <button class="moveUpBtn" title="Move up">⬆️</button>
+        <button class="moveDownBtn" title="Move down">⬇️</button>
+        <button class="deleteLinkBtn" title="Delete link">🗑️</button>
+      </div>
+    </div>
+  </template>
+
+  <script>
+  // ====== Utilities ======
+  const $ = (sel, el = document) => el.querySelector(sel);
+  const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
+  const uid = () => Math.random().toString(36).slice(2, 9);
+  const downloadBlob = (blob, name) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  const readFileAsDataURL = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+
+  // ====== Local Settings (LocalStorage) ======
+  const SETTINGS_KEY = 'hpx:settings:v1';
+  const defaultSettings = {
+    accent: '#46a6ff', accent2: '#7c4dff',
+    wallpaper: null, wallpaperAlpha: 0.22,
+    gridMin: 320,
+  };
+  const loadSettings = () => ({ ...defaultSettings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') });
+  const saveSettings = (s) => { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); applySettings(s); };
+  const applySettings = (s) => {
+    document.documentElement.style.setProperty('--accent', s.accent);
+    document.documentElement.style.setProperty('--accent-2', s.accent2);
+    document.documentElement.style.setProperty('--grid', s.gridMin + 'px');
+    document.documentElement.style.setProperty('--wallpaper-alpha', s.wallpaperAlpha);
+    if (s.wallpaper) document.documentElement.style.setProperty('--wallpaper', `url(${s.wallpaper})`);
+    else document.documentElement.style.setProperty('--wallpaper', 'none');
+  };
+
+  // ====== Data (IndexedDB) ======
+  const DB_NAME = 'homepagex';
+  const DB_VERSION = 1;
+  let db;
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const d = e.target.result;
+        if (!d.objectStoreNames.contains('topics')) {
+          const store = d.createObjectStore('topics', { keyPath: 'id' });
+          store.createIndex('by_title', 'title', { unique: false });
+        }
+      };
+      req.onsuccess = () => { db = req.result; resolve(db); };
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function tx(store, mode = 'readonly') { return db.transaction(store, mode).objectStore(store); }
+  const getAllTopics = () => new Promise((res, rej) => { const r = tx('topics').getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); });
+  const putTopic = (topic) => new Promise((res, rej) => { const r = tx('topics', 'readwrite').put(topic); r.onsuccess = () => res(); r.onerror = () => rej(r.error); });
+  const deleteTopic = (id) => new Promise((res, rej) => { const r = tx('topics', 'readwrite').delete(id); r.onsuccess = () => res(); r.onerror = () => rej(r.error); });
+
+  // ====== State ======
+  let settings = loadSettings();
+  applySettings(settings);
+  let topics = [];
+
+  // ====== Rendering ======
+  const grid = $('#grid');
+  const topicTpl = $('#topicTemplate');
+  const linkTpl = $('#linkTemplate');
+
+  function render() {
+    grid.innerHTML = '';
+    const q = $('#search').value.trim().toLowerCase();
+    topics.forEach(t => {
+      // filter by search
+      const linksFiltered = q ? (t.links || []).filter(l => (l.title + ' ' + l.url).toLowerCase().includes(q)) : (t.links || []);
+      const node = topicTpl.content.firstElementChild.cloneNode(true);
+      node.dataset.topicId = t.id;
+      node.style.borderTopColor = t.color || settings.accent;
+      $('.chip', node).textContent = t.emoji || '📁';
+      $('.name', node).textContent = t.title || 'Untitled';
+
+      const linksEl = $('.links', node);
+      linksFiltered.forEach(l => {
+        const li = linkTpl.content.firstElementChild.cloneNode(true);
+        li.dataset.linkId = l.id;
+        $('a', li).textContent = l.title;
+        $('a', li).href = l.url;
+        linksEl.appendChild(li);
+      });
+
+      // wire buttons
+      $('.addLinkBtn', node).addEventListener('click', () => openLinkModal(t.id));
+      $('.editTopicBtn', node).addEventListener('click', () => openTopicModal(t));
+      $('.deleteTopicBtn', node).addEventListener('click', async () => {
+        if (confirm(`Delete topic "${t.title}"?`)) { await deleteTopic(t.id); await refresh(); }
+      });
+
+      // link actions
+      linksEl.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('button'); if (!btn) return;
+        const linkItem = ev.target.closest('.link-item');
+        const linkId = linkItem?.dataset.linkId; if (!linkId) return;
+        const topic = topics.find(x => x.id === t.id); const idx = topic.links.findIndex(x => x.id === linkId);
+        if (btn.classList.contains('deleteLinkBtn')) {
+          if (confirm('Delete link?')) { topic.links.splice(idx,1); putTopic(topic).then(refresh); }
+        } else if (btn.classList.contains('editLinkBtn')) {
+          openLinkModal(t.id, topic.links[idx]);
+        } else if (btn.classList.contains('moveUpBtn')) {
+          if (idx>0) { [topic.links[idx-1], topic.links[idx]] = [topic.links[idx], topic.links[idx-1]]; putTopic(topic).then(refresh); }
+        } else if (btn.classList.contains('moveDownBtn')) {
+          if (idx < topic.links.length-1) { [topic.links[idx+1], topic.links[idx]] = [topic.links[idx], topic.links[idx+1]]; putTopic(topic).then(refresh); }
+        }
+      });
+
+      grid.appendChild(node);
+    });
+  }
+
+  async function refresh() {
+    topics = await getAllTopics();
+    // sort by title for stability
+    topics.sort((a,b) => a.title.localeCompare(b.title));
+    render();
+  }
+
+  // ====== Topic Modal ======
+  const topicModal = $('#topicModal');
+  const topicForm = $('#topicForm');
+  function openTopicModal(topic) {
+    // populate
+    $('#topicModalTitle').textContent = topic ? 'Edit topic' : 'New topic';
+    $('#topicIdPill').textContent = topic ? topic.id : 'new';
+    $('#topicTitle').value = topic?.title || '';
+    $('#topicEmoji').value = topic?.emoji || '';
+    $('#topicColor').value = topic?.color || settings.accent;
+    topicModal.returnValue = '';
+    topicModal.showModal();
+
+    topicForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const t = {
+        id: topic?.id || uid(),
+        title: $('#topicTitle').value.trim() || 'Untitled',
+        emoji: $('#topicEmoji').value.trim() || '📁',
+        color: $('#topicColor').value,
+        links: topic?.links || [],
+      };
+      await putTopic(t); await refresh(); topicModal.close();
+    };
+  }
+
+  // ====== Link Modal ======
+  const linkModal = $('#linkModal');
+  const linkForm = $('#linkForm');
+  let linkModalTopicId = null;
+  function openLinkModal(topicId, link) {
+    linkModalTopicId = topicId;
+    const t = topics.find(x => x.id === topicId);
+    $('#linkModalTitle').textContent = link ? 'Edit link' : 'Add link';
+    $('#linkTopicName').textContent = t?.title || '';
+    $('#linkTitle').value = link?.title || '';
+    $('#linkUrl').value = link?.url || '';
+    linkModal.returnValue = '';
+    linkModal.showModal();
+
+    linkForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const topic = topics.find(x => x.id === linkModalTopicId);
+      const newLink = { id: link?.id || uid(), title: $('#linkTitle').value.trim(), url: $('#linkUrl').value.trim() };
+      if (!newLink.title || !newLink.url) return;
+      if (!topic.links) topic.links = [];
+      const idx = topic.links.findIndex(x => x.id === newLink.id);
+      if (idx >= 0) topic.links[idx] = newLink; else topic.links.push(newLink);
+      await putTopic(topic); await refresh(); linkModal.close();
+    };
+  }
+
+  // ====== Theme ======
+  const themeModal = $('#themeModal');
+  function openThemeModal() {
+    $('#themeAccent').value = settings.accent;
+    $('#themeAccent2').value = settings.accent2;
+    $('#wallpaperAlpha').value = settings.wallpaperAlpha;
+    const quick = $('#quickWallpapers'); quick.innerHTML = '';
+    const samples = [
+      'linear-gradient(135deg,#0ea5e9,#7c3aed)',
+      'linear-gradient(135deg,#22c55e,#16a34a)',
+      'linear-gradient(135deg,#f59e0b,#ef4444)',
+      'linear-gradient(135deg,#111827,#1f2937)'
+    ];
+    samples.forEach(bg => {
+      const b = document.createElement('button'); b.type='button'; b.className='btn'; b.style.background=bg; b.textContent=' ';
+      b.style.width='56px'; b.style.height='38px'; b.title='Apply quick wallpaper';
+      b.addEventListener('click', () => { settings.wallpaper = bg; saveSettings(settings); });
+      quick.appendChild(b);
+    });
+
+    themeModal.showModal();
+  }
+
+  $('#saveThemeBtn').addEventListener('click', (e) => {
+    e.preventDefault();
+    settings.accent = $('#themeAccent').value;
+    settings.accent2 = $('#themeAccent2').value;
+    settings.wallpaperAlpha = parseFloat($('#wallpaperAlpha').value);
+    saveSettings(settings); themeModal.close(); render();
+  });
+  $('#wallpaperFile').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const dataUrl = await readFileAsDataURL(file); settings.wallpaper = dataUrl; saveSettings(settings);
+  });
+
+  // ====== Backup ======
+  const backupModal = $('#backupModal');
+  function openBackupModal() { backupModal.showModal(); }
+
+  $('#exportBtn').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const payload = { settings, topics };
+    const blob = new Blob([JSON.stringify(payload,null,2)], { type: 'application/json' });
+    const stamp = new Date().toISOString().replace(/[:.]/g,'-');
+    downloadBlob(blob, `HomePageX-backup-${stamp}.json`);
+  });
+  $('#importFile').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const txt = await file.text();
+    try {
+      const data = JSON.parse(txt);
+      if (data.settings) { settings = { ...defaultSettings, ...data.settings }; saveSettings(settings); }
+      if (Array.isArray(data.topics)) {
+        // wipe & restore topics
+        const store = tx('topics', 'readwrite');
+        const clearReq = store.clear();
+        clearReq.onsuccess = async () => {
+          await Promise.all((data.topics||[]).map(t => putTopic(t)));
+          await refresh(); alert('Imported successfully.');
+        };
+      }
+    } catch(err) { alert('Invalid backup file.'); }
+  });
+
+  // ====== Reset ======
+  async function resetAll() {
+    if (!confirm('This will erase topics and settings. A backup file will be downloaded first. Continue?')) return;
+    // auto-export first
+    const payload = { settings, topics };
+    const blob = new Blob([JSON.stringify(payload,null,2)], { type: 'application/json' });
+    downloadBlob(blob, `HomePageX-auto-backup-${new Date().toISOString().replace(/[:.]/g,'-')}.json`);
+
+    // clear DB
+    await new Promise((res, rej) => { const r = tx('topics','readwrite').clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); });
+    topics = [];
+    // clear settings
+    localStorage.removeItem(SETTINGS_KEY); settings = loadSettings(); applySettings(settings);
+    render();
+  }
+
+  // ====== Search shortcut ======
+  window.addEventListener('keydown', (e) => { if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); $('#search').focus(); } });
+
+  // ====== Toolbar wiring ======
+  $('#addTopicBtn').addEventListener('click', () => openTopicModal());
+  $('#themeBtn').addEventListener('click', openThemeModal);
+  $('#backupBtn').addEventListener('click', openBackupModal);
+  $('#resetBtn').addEventListener('click', resetAll);
+  $('#search').addEventListener('input', render);
+
+  // ====== First run sample ======
+  async function ensureSamples() {
+    const all = await getAllTopics();
+    if (all.length) return; // already has data
+    const sample = [
+      { id: uid(), title: 'Work', emoji: '💼', color: '#7c4dff', links: [
+        { id: uid(), title: 'Mail', url: 'https://mail.google.com' },
+        { id: uid(), title: 'Calendar', url: 'https://calendar.google.com' },
+        { id: uid(), title: 'Docs', url: 'https://docs.google.com' },
+      ]},
+      { id: uid(), title: 'News', emoji: '📰', color: '#46a6ff', links: [
+        { id: uid(), title: 'BBC', url: 'https://www.bbc.com' },
+        { id: uid(), title: 'The Verge', url: 'https://www.theverge.com' },
+      ]},
+      { id: uid(), title: 'Learning', emoji: '📚', color: '#22c55e', links: [
+        { id: uid(), title: 'MDN', url: 'https://developer.mozilla.org' },
+        { id: uid(), title: 'freeCodeCamp', url: 'https://www.freecodecamp.org' }
+      ]},
+    ];
+    await Promise.all(sample.map(putTopic));
+  }
+
+  // ====== Boot ======
+  (async function init(){
+    await openDB();
+    await ensureSamples();
+    await refresh();
+  })();
+  </script>
+</body>
+</html>
