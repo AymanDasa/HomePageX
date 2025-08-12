@@ -1,7 +1,5 @@
 # HomePageX - Personal Start Page
 
-// /* ![Demo Screenshot](https://i.imgur.com/example.png) *Example screenshot*
-
 HomePageX is a lightweight, self-contained personal start page that lets you organize your favorite links into customizable topic cards. Everything is stored locally in your browser (using IndexedDB + LocalStorage) - no server, no tracking, no installation needed.
 
 ## Features
